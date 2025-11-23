@@ -518,6 +518,212 @@ async def run_benchmark():
             "error": f"Benchmark failed: {str(e)}"
         }
 
+# ===== BUSINESS USE CASES API =====
+
+from engines.transformers_registry import transformers_registry, BusinessDomain, ModelCategory
+
+@app.get("/api/v1/business/domains")
+async def get_business_domains():
+    """Get all available business domains"""
+    try:
+        domains = transformers_registry.get_all_domains()
+        
+        return {
+            "success": True,
+            "data": [{"id": domain.value, "name": domain.value.replace("_", " ").title()} for domain in domains]
+        }
+    except Exception as e:
+        logger.error(f"Business domains error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to retrieve business domains: {str(e)}"
+        }
+
+@app.get("/api/v1/business/domains/{domain}/use-cases")
+async def get_domain_use_cases(domain: str):
+    """Get use cases for a specific business domain"""
+    try:
+        business_domain = BusinessDomain(domain)
+        use_cases = transformers_registry.get_business_use_cases(business_domain)
+        
+        return {
+            "success": True,
+            "data": use_cases
+        }
+    except ValueError:
+        return {
+            "success": False,
+            "error": f"Invalid business domain: {domain}"
+        }
+    except Exception as e:
+        logger.error(f"Domain use cases error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to retrieve use cases: {str(e)}"
+        }
+
+@app.get("/api/v1/business/domains/{domain}/models")
+async def get_domain_models(domain: str):
+    """Get models available for a business domain"""
+    try:
+        business_domain = BusinessDomain(domain)
+        models = transformers_registry.get_models_by_domain(business_domain)
+        
+        return {
+            "success": True,
+            "data": models
+        }
+    except ValueError:
+        return {
+            "success": False,
+            "error": f"Invalid business domain: {domain}"
+        }
+    except Exception as e:
+        logger.error(f"Domain models error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to retrieve domain models: {str(e)}"
+        }
+
+@app.post("/api/v1/business/generate")
+async def business_generation(
+    request: dict,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Business-focused content generation"""
+    try:
+        domain = request.get("business_domain")
+        use_case = request.get("use_case")
+        prompt = request.get("prompt")
+        business_context = request.get("business_context", {})
+        
+        if not domain or not prompt:
+            return {
+                "success": False,
+                "error": "Missing required fields: business_domain and prompt"
+            }
+        
+        # For now, use the universal generator with enhanced prompt
+        enhanced_prompt = f"""
+Business Domain: {domain}
+Use Case: {use_case}
+Context: {business_context}
+
+Task: {prompt}
+"""
+        
+        gen_request = GenerationRequest(
+            task=GenerationTask.TEXT_COMPLETION,
+            prompt=enhanced_prompt,
+            parameters=request.get("parameters", {}),
+            safety_checks=True
+        )
+        
+        result = await universal_generator.generate(gen_request)
+        
+        return {
+            "success": True,
+            "data": {
+                "content": result.content,
+                "business_domain": domain,
+                "use_case": use_case,
+                "model_used": result.model_used,
+                "latency": result.latency,
+                "metadata": result.metadata
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Business generation error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Business generation failed: {str(e)}"
+        }
+
+@app.post("/api/v1/business/analyze")
+async def business_analysis(
+    request: dict,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Business-focused content analysis"""
+    try:
+        domain = request.get("business_domain")
+        use_case = request.get("use_case")
+        input_data = request.get("input_data")
+        business_context = request.get("business_context", {})
+        
+        if not domain or not input_data:
+            return {
+                "success": False,
+                "error": "Missing required fields: business_domain and input_data"
+            }
+        
+        # Map to appropriate analysis task
+        task = AnalysisTask.SENTIMENT_ANALYSIS  # Default
+        if "sentiment" in use_case.lower():
+            task = AnalysisTask.SENTIMENT_ANALYSIS
+        elif "entity" in use_case.lower() or "extraction" in use_case.lower():
+            task = AnalysisTask.ENTITY_EXTRACTION
+        elif "summariz" in use_case.lower():
+            task = AnalysisTask.SUMMARIZATION
+        elif "question" in use_case.lower() or "qa" in use_case.lower():
+            task = AnalysisTask.QUESTION_ANSWERING
+        
+        analysis_request = AnalysisRequest(
+            task=task,
+            input_data=input_data,
+            context={**business_context, "business_domain": domain, "use_case": use_case},
+            parameters=request.get("parameters", {}),
+            require_reasoning_chain=request.get("require_reasoning_chain", False),
+            safety_checks=True
+        )
+        
+        result = await universal_analyzer.analyze(analysis_request)
+        
+        return {
+            "success": True,
+            "data": {
+                "result": result.result,
+                "business_domain": domain,
+                "use_case": use_case,
+                "confidence": result.confidence,
+                "confidence_level": result.confidence_level.value,
+                "model_used": result.model_used,
+                "processing_time": result.processing_time,
+                "metadata": result.metadata
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Business analysis error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Business analysis failed: {str(e)}"
+        }
+
+@app.get("/api/v1/business/models/search")
+async def search_business_models(query: str = ""):
+    """Search models by business relevance"""
+    try:
+        if not query:
+            return {
+                "success": False,
+                "error": "Query parameter required"
+            }
+        
+        results = transformers_registry.search_models(query)
+        
+        return {
+            "success": True,
+            "data": results
+        }
+    except Exception as e:
+        logger.error(f"Model search error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Model search failed: {str(e)}"
+        }
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
