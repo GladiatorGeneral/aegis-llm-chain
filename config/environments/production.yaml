@@ -1,0 +1,41 @@
+# Production environment configuration
+environment: production
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  debug: false
+  reload: false
+
+database:
+  url: ${DATABASE_URL}
+  pool_size: 20
+  max_overflow: 40
+
+redis:
+  url: ${REDIS_URL}
+  max_connections: 50
+
+security:
+  secret_key: ${SECRET_KEY}
+  algorithm: HS256
+  access_token_expire_minutes: 30
+  max_prompt_length: 10000
+
+models:
+  cache_dir: /app/model_cache
+  default_model: llama-2-7b
+  hf_token: ${HF_TOKEN}
+
+logging:
+  level: INFO
+  file: /var/log/agi-platform/app.log
+
+cors:
+  allowed_origins:
+    - https://agi-platform.com
+    - https://www.agi-platform.com
+
+monitoring:
+  sentry_dsn: ${SENTRY_DSN}
+  prometheus_enabled: true

@@ -1,0 +1,55 @@
+# Hugging Face configuration
+
+# Authentication
+authentication:
+  token: ${HF_TOKEN}
+  token_file: ~/.huggingface/token
+
+# Cache configuration
+cache:
+  directory: ./model_cache
+  max_size_gb: 100
+  cleanup_strategy: lru  # Least Recently Used
+
+# Model download settings
+download:
+  max_workers: 4
+  chunk_size: 1048576  # 1MB
+  resume_on_failure: true
+  retry_attempts: 3
+  
+# Model loading
+loading:
+  device_map: auto
+  load_in_8bit: false
+  load_in_4bit: false
+  low_cpu_mem_usage: true
+  
+# API settings
+api:
+  base_url: https://huggingface.co
+  timeout_seconds: 300
+  max_retries: 3
+
+# Model filtering
+filters:
+  allowed_architectures:
+    - transformers
+    - diffusers
+    - sentence-transformers
+  
+  blocked_tags:
+    - adult-content
+    - deprecated
+  
+  min_downloads: 1000
+  
+# Security
+security:
+  scan_before_load: true
+  verify_checksums: true
+  trusted_publishers:
+    - meta-llama
+    - mistralai
+    - openai
+    - huggingface

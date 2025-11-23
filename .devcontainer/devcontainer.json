@@ -1,0 +1,21 @@
+{
+  "name": "AGI Platform Dev",
+  "dockerComposeFile": "../docker-compose.dev.yml",
+  "service": "dev-container",
+  "workspaceFolder": "/workspace",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode.vscode-typescript-next"
+      ],
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash"
+      }
+    }
+  },
+  "forwardPorts": [8000, 3000, 5432, 6379],
+  "postCreateCommand": "pip install -r backend/requirements/dev.txt && cd frontend && npm install",
+  "remoteUser": "vscode"
+}

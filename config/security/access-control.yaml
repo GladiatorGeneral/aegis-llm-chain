@@ -1,0 +1,67 @@
+# Access control configuration
+
+# Role-based access control (RBAC)
+roles:
+  admin:
+    description: "Full system access"
+    permissions:
+      - "*"
+  
+  developer:
+    description: "Development and testing access"
+    permissions:
+      - "cognitive:*"
+      - "models:read"
+      - "models:deploy"
+      - "workflows:*"
+  
+  analyst:
+    description: "Read and analysis access"
+    permissions:
+      - "cognitive:read"
+      - "cognitive:analyze"
+      - "models:read"
+      - "workflows:read"
+  
+  user:
+    description: "Basic user access"
+    permissions:
+      - "cognitive:process"
+      - "models:read"
+      - "workflows:read"
+
+# Resource-level permissions
+resources:
+  models:
+    create: ["admin", "developer"]
+    read: ["admin", "developer", "analyst", "user"]
+    update: ["admin", "developer"]
+    delete: ["admin"]
+    deploy: ["admin", "developer"]
+  
+  workflows:
+    create: ["admin", "developer"]
+    read: ["admin", "developer", "analyst", "user"]
+    update: ["admin", "developer"]
+    delete: ["admin", "developer"]
+    execute: ["admin", "developer", "analyst"]
+  
+  cognitive:
+    process: ["admin", "developer", "analyst", "user"]
+    analyze: ["admin", "developer", "analyst"]
+
+# API key scopes
+api_key_scopes:
+  read_only:
+    - "models:read"
+    - "workflows:read"
+    - "cognitive:read"
+  
+  development:
+    - "models:*"
+    - "workflows:*"
+    - "cognitive:*"
+  
+  production:
+    - "cognitive:process"
+    - "workflows:execute"

@@ -1,0 +1,38 @@
+# Rate limiting configuration
+
+# Global rate limits
+global:
+  enabled: true
+  requests_per_minute: 60
+  burst: 10
+
+# Per-endpoint rate limits
+endpoints:
+  cognitive_process:
+    path: /api/v1/cognitive/process
+    requests_per_hour: 100
+    requests_per_day: 1000
+  
+  workflow_execute:
+    path: /api/v1/workflows/*/execute
+    requests_per_hour: 50
+    requests_per_day: 500
+  
+  model_deploy:
+    path: /api/v1/models/deploy
+    requests_per_hour: 10
+    requests_per_day: 50
+
+# Per-user rate limits
+user_limits:
+  default:
+    requests_per_hour: 100
+    requests_per_day: 1000
+  
+  premium:
+    requests_per_hour: 500
+    requests_per_day: 5000
+  
+  enterprise:
+    requests_per_hour: -1  # Unlimited
+    requests_per_day: -1

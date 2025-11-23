@@ -1,0 +1,55 @@
+# Content filtering configuration
+
+# Input filtering
+input_filters:
+  enabled: true
+  
+  # Block patterns (regex)
+  blocked_patterns:
+    - pattern: "\\b(password|secret|api[_-]?key)\\b"
+      reason: "Potential credentials detected"
+    
+    - pattern: "\\b(ssh-rsa|BEGIN\\s+(RSA|EC|DSA)\\s+PRIVATE KEY)\\b"
+      reason: "SSH key or private key detected"
+    
+    - pattern: "\\b(\\d{3}-\\d{2}-\\d{4})\\b"
+      reason: "Social Security Number pattern detected"
+  
+  # Maximum lengths
+  max_lengths:
+    prompt: 10000
+    description: 5000
+    name: 200
+
+# Output filtering
+output_filters:
+  enabled: true
+  
+  # PII detection and redaction
+  pii_detection:
+    enabled: true
+    entities:
+      - email
+      - phone_number
+      - credit_card
+      - ssn
+      - ip_address
+    
+    redaction_mode: mask  # Options: mask, remove, hash
+  
+  # Content safety
+  content_safety:
+    enabled: true
+    categories:
+      - hate_speech
+      - violence
+      - sexual_content
+      - self_harm
+    
+    threshold: 0.7  # Confidence threshold (0-1)
+
+# Monitoring
+monitoring:
+  log_filtered_content: true
+  alert_on_violations: true
+  retention_days: 90
