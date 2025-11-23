@@ -1,9 +1,76 @@
 """Base abstract classes for universal engines."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional, Union
+from enum import Enum
+import logging
+from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
+class GenerationTask(str, Enum):
+    """Supported generation tasks"""
+    TEXT_COMPLETION = "text_completion"
+    CHAT = "chat"
+    CODE_GENERATION = "code_generation"
+    TEXT_SUMMARIZATION = "text_summarization"
+    TEXT_TRANSLATION = "text_translation"
+    DATA_GENERATION = "data_generation"
+
+class ModelProvider(str, Enum):
+    """Supported model providers"""
+    HUGGINGFACE = "huggingface"
+    OPENAI = "openai"  # For fallback
+    CUSTOM = "custom"
+
+class GenerationRequest(BaseModel):
+    """Universal generation request"""
+    task: GenerationTask
+    prompt: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    context: Optional[Dict[str, Any]] = None
+    output_format: str = "text"
+    provider: ModelProvider = ModelProvider.HUGGINGFACE
+    model_id: Optional[str] = None  # Specific model to use
+    safety_checks: bool = True
+    
+    class Config:
+        use_enum_values = True
+
+class GenerationResponse(BaseModel):
+    """Universal generation response"""
+    content: Any
+    model_used: str
+    provider: str
+    latency: float
+    tokens_used: Optional[int] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    safety_flagged: bool = False
+    safety_reason: Optional[str] = None
+
+class BaseGenerator(ABC):
+    """Abstract base class for all generators"""
+    
+    @abstractmethod
+    async def generate(self, request: GenerationRequest) -> GenerationResponse:
+        pass
+    
+    @abstractmethod
+    def supports_task(self, task: GenerationTask) -> bool:
+        pass
+    
+    @abstractmethod
+    def get_supported_models(self) -> List[str]:
+        pass
+    
+    def validate_request(self, request: GenerationRequest) -> bool:
+        """Basic request validation"""
+        if not request.prompt or not request.prompt.strip():
+            raise ValueError("Prompt cannot be empty")
+        return True
+
+# Legacy compatibility classes
 class EngineConfig(BaseModel):
     """Base engine configuration."""
     model_id: str

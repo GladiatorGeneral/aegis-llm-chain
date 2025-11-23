@@ -33,7 +33,9 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_HOUR: int = 100
     
     class Config:
-        env_file = ".env"
+        env_file_encoding = 'utf-8'
         case_sensitive = True
+        extra = 'ignore'
 
+# Initialize settings (will use defaults if .env not found)
 settings = Settings()
