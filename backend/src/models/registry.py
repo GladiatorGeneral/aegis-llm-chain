@@ -1,97 +1,280 @@
-"""Model registry for managing available models."""
-
-from typing import Dict, List, Optional
-from pydantic import BaseModel
+"""
+Model Registry & Configuration System
+Organizes models by type, capability, and optimization level
+"""
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Any
 from enum import Enum
+import os
 
-class ModelType(str, Enum):
-    """Types of models."""
-    GENERATIVE = "generative"
-    CLASSIFICATION = "classification"
+class ModelType(Enum):
+    """Types of models"""
+    CHAT = "chat"
+    COMPLETION = "completion"
     EMBEDDING = "embedding"
+    IMAGE = "image"
+    AUDIO = "audio"
     MULTIMODAL = "multimodal"
 
-class ModelCapability(str, Enum):
-    """Model capabilities."""
-    GENERATION = "generation"
-    CHAT = "chat"
-    REASONING = "reasoning"
-    ANALYSIS = "analysis"
-    SUMMARIZATION = "summarization"
+class ModelProvider(Enum):
+    """Model providers"""
+    HUGGINGFACE = "huggingface"
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    CUSTOM = "custom"
 
-class ModelMetadata(BaseModel):
-    """Model metadata."""
+@dataclass
+class ModelConfig:
+    """Configuration for each model"""
     model_id: str
+    model_type: ModelType
+    provider: ModelProvider
     name: str
-    type: ModelType
-    size: str
-    provider: str
-    capabilities: List[ModelCapability]
-    status: str = "available"
-    deployment_url: Optional[str] = None
+    description: str
+    context_length: int
+    max_tokens: int
+    supported_tasks: List[str]
+    requires_auth: bool = True
+    api_base: Optional[str] = None
+    api_key_env: Optional[str] = None
+    cost_per_1k_tokens: Optional[float] = None
+    is_local: bool = False
+    local_path: Optional[str] = None
+    quantization: Optional[str] = None  # "4bit", "8bit", "16bit"
+    
+    def __post_init__(self):
+        if self.api_key_env and self.requires_auth:
+            self.api_key = os.getenv(self.api_key_env)
+        else:
+            self.api_key = None
 
 class ModelRegistry:
-    """Central registry for all available models."""
+    """
+    Central registry for all models
+    Organized by type, provider, and capability
+    """
     
     def __init__(self):
-        self.models: Dict[str, ModelMetadata] = {}
-        self._load_default_models()
+        self._registry: Dict[str, ModelConfig] = {}
+        self._initialize_registry()
     
-    def _load_default_models(self):
-        """Load default model configurations."""
-        # Add default models
-        self.register_model(ModelMetadata(
-            model_id="llama-2-7b",
-            name="Llama 2 7B",
-            type=ModelType.GENERATIVE,
-            size="7B",
-            provider="meta",
-            capabilities=[ModelCapability.GENERATION, ModelCapability.CHAT]
-        ))
+    def _initialize_registry(self):
+        """Initialize with comprehensive model configurations"""
         
-        self.register_model(ModelMetadata(
-            model_id="gpt-3.5-turbo",
-            name="GPT-3.5 Turbo",
-            type=ModelType.GENERATIVE,
-            size="175B",
-            provider="openai",
-            capabilities=[
-                ModelCapability.GENERATION,
-                ModelCapability.CHAT,
-                ModelCapability.REASONING
-            ]
-        ))
-    
-    def register_model(self, metadata: ModelMetadata):
-        """Register a new model."""
-        self.models[metadata.model_id] = metadata
-    
-    def get_model(self, model_id: str) -> Optional[ModelMetadata]:
-        """Get model metadata by ID."""
-        return self.models.get(model_id)
-    
-    def list_models(
-        self, 
-        model_type: Optional[ModelType] = None,
-        capability: Optional[ModelCapability] = None
-    ) -> List[ModelMetadata]:
-        """List models with optional filtering."""
-        models = list(self.models.values())
+        # ==================== CHAT MODELS ====================
         
+        # Cogito 67B - Your primary model
+        self._registry["cogito-671b"] = ModelConfig(
+            model_id="deepcogito/cogito-671b-v2.1",
+            model_type=ModelType.CHAT,
+            provider=ModelProvider.HUGGINGFACE,
+            name="Cogito 67B v2.1",
+            description="Advanced 67B parameter chat model with strong reasoning capabilities",
+            context_length=32768,
+            max_tokens=4096,
+            supported_tasks=["chat", "reasoning", "coding", "analysis"],
+            api_key_env="HF_TOKEN",
+            cost_per_1k_tokens=0.0,  # Free via Inference API
+            is_local=False
+        )
+        
+        # Llama Models
+        self._registry["llama2-70b"] = ModelConfig(
+            model_id="meta-llama/Llama-2-70b-chat-hf",
+            model_type=ModelType.CHAT,
+            provider=ModelProvider.HUGGINGFACE,
+            name="Llama 2 70B Chat",
+            description="Meta's 70B parameter Llama 2 model optimized for chat",
+            context_length=4096,
+            max_tokens=4096,
+            supported_tasks=["chat", "qa", "summarization"],
+            api_key_env="HF_TOKEN",
+            requires_auth=True
+        )
+        
+        self._registry["llama3-8b"] = ModelConfig(
+            model_id="meta-llama/Meta-Llama-3-8B-Instruct",
+            model_type=ModelType.CHAT,
+            provider=ModelProvider.HUGGINGFACE,
+            name="Llama 3 8B Instruct",
+            description="Latest Llama 3 8B parameter instruct model with improved performance",
+            context_length=8192,
+            max_tokens=2048,
+            supported_tasks=["chat", "instruction", "reasoning"],
+            api_key_env="HF_TOKEN"
+        )
+        
+        # Mistral Models
+        self._registry["mistral-7b"] = ModelConfig(
+            model_id="mistralai/Mistral-7B-Instruct-v0.2",
+            model_type=ModelType.CHAT,
+            provider=ModelProvider.HUGGINGFACE,
+            name="Mistral 7B Instruct v0.2",
+            description="Efficient 7B parameter instruct model with 32K context",
+            context_length=32768,
+            max_tokens=8192,
+            supported_tasks=["chat", "instruction", "coding"],
+            api_key_env="HF_TOKEN"
+        )
+        
+        self._registry["mixtral-8x7b"] = ModelConfig(
+            model_id="mistralai/Mixtral-8x7B-Instruct-v0.1",
+            model_type=ModelType.CHAT,
+            provider=ModelProvider.HUGGINGFACE,
+            name="Mixtral 8x7B Instruct",
+            description="Mixture of Experts model with 46.7B parameters, 32K context",
+            context_length=32768,
+            max_tokens=4096,
+            supported_tasks=["chat", "reasoning", "coding", "multilingual"],
+            api_key_env="HF_TOKEN"
+        )
+        
+        # Microsoft Phi Models
+        self._registry["phi-3-mini"] = ModelConfig(
+            model_id="microsoft/Phi-3-mini-4k-instruct",
+            model_type=ModelType.CHAT,
+            provider=ModelProvider.HUGGINGFACE,
+            name="Phi-3 Mini 4K",
+            description="Lightweight 3.8B parameter model optimized for efficiency",
+            context_length=4096,
+            max_tokens=4096,
+            supported_tasks=["chat", "instruction", "qa"],
+            api_key_env="HF_TOKEN"
+        )
+        
+        self._registry["phi-3-medium"] = ModelConfig(
+            model_id="microsoft/Phi-3-medium-4k-instruct",
+            model_type=ModelType.CHAT,
+            provider=ModelProvider.HUGGINGFACE,
+            name="Phi-3 Medium 4K",
+            description="14B parameter model with excellent reasoning capabilities",
+            context_length=4096,
+            max_tokens=4096,
+            supported_tasks=["chat", "reasoning", "coding", "instruction"],
+            api_key_env="HF_TOKEN"
+        )
+        
+        # Code-Specialized Models
+        self._registry["codellama-34b"] = ModelConfig(
+            model_id="codellama/CodeLlama-34b-Instruct-hf",
+            model_type=ModelType.CHAT,
+            provider=ModelProvider.HUGGINGFACE,
+            name="CodeLlama 34B Instruct",
+            description="Code-specialized 34B model for programming tasks",
+            context_length=16384,
+            max_tokens=4096,
+            supported_tasks=["coding", "code-generation", "debugging", "chat"],
+            api_key_env="HF_TOKEN"
+        )
+        
+        # ==================== EMBEDDING MODELS ====================
+        
+        self._registry["bge-large"] = ModelConfig(
+            model_id="BAAI/bge-large-en-v1.5",
+            model_type=ModelType.EMBEDDING,
+            provider=ModelProvider.HUGGINGFACE,
+            name="BGE Large English",
+            description="High-quality English embeddings for semantic search",
+            context_length=512,
+            max_tokens=512,
+            supported_tasks=["embedding", "semantic-search", "retrieval"],
+            api_key_env="HF_TOKEN"
+        )
+        
+        self._registry["gte-large"] = ModelConfig(
+            model_id="thenlper/gte-large",
+            model_type=ModelType.EMBEDDING,
+            provider=ModelProvider.HUGGINGFACE,
+            name="GTE Large",
+            description="General text embeddings for semantic search and retrieval",
+            context_length=512,
+            max_tokens=512,
+            supported_tasks=["embedding", "semantic-search", "retrieval"],
+            api_key_env="HF_TOKEN"
+        )
+        
+        self._registry["e5-large"] = ModelConfig(
+            model_id="intfloat/e5-large-v2",
+            model_type=ModelType.EMBEDDING,
+            provider=ModelProvider.HUGGINGFACE,
+            name="E5 Large v2",
+            description="Multilingual embedding model with strong performance",
+            context_length=512,
+            max_tokens=512,
+            supported_tasks=["embedding", "semantic-search", "multilingual"],
+            api_key_env="HF_TOKEN"
+        )
+        
+        # ==================== LOCAL MODELS ====================
+        
+        self._registry["zephyr-7b-local"] = ModelConfig(
+            model_id="HuggingFaceH4/zephyr-7b-beta",
+            model_type=ModelType.CHAT,
+            provider=ModelProvider.HUGGINGFACE,
+            name="Zephyr 7B Local",
+            description="7B model optimized for local inference with 4-bit quantization",
+            context_length=32768,
+            max_tokens=4096,
+            supported_tasks=["chat", "instruction"],
+            is_local=True,
+            local_path="./models/zephyr-7b-beta",
+            quantization="4bit",
+            api_key_env="HF_TOKEN"
+        )
+        
+        self._registry["mistral-7b-local"] = ModelConfig(
+            model_id="mistralai/Mistral-7B-Instruct-v0.2",
+            model_type=ModelType.CHAT,
+            provider=ModelProvider.HUGGINGFACE,
+            name="Mistral 7B Local",
+            description="Mistral 7B optimized for local 4-bit inference",
+            context_length=32768,
+            max_tokens=8192,
+            supported_tasks=["chat", "instruction", "coding"],
+            is_local=True,
+            local_path="./models/mistral-7b-instruct-v0.2",
+            quantization="4bit",
+            api_key_env="HF_TOKEN"
+        )
+    
+    def get_model(self, model_key: str) -> Optional[ModelConfig]:
+        """Get model configuration by key"""
+        return self._registry.get(model_key)
+    
+    def list_models(self, model_type: Optional[ModelType] = None) -> List[ModelConfig]:
+        """List all models, optionally filtered by type"""
         if model_type:
-            models = [m for m in models if m.type == model_type]
-        
-        if capability:
-            models = [m for m in models if capability in m.capabilities]
-        
-        return models
+            return [config for config in self._registry.values() if config.model_type == model_type]
+        return list(self._registry.values())
     
-    def unregister_model(self, model_id: str) -> bool:
-        """Unregister a model."""
-        if model_id in self.models:
-            del self.models[model_id]
-            return True
-        return False
+    def get_models_by_task(self, task: str) -> List[ModelConfig]:
+        """Get models that support a specific task"""
+        return [config for config in self._registry.values() if task in config.supported_tasks]
+    
+    def get_models_by_provider(self, provider: ModelProvider) -> List[ModelConfig]:
+        """Get models from a specific provider"""
+        return [config for config in self._registry.values() if config.provider == provider]
+    
+    def add_model(self, model_key: str, config: ModelConfig):
+        """Add a new model to registry"""
+        self._registry[model_key] = config
+    
+    def get_model_count(self) -> int:
+        """Get total number of registered models"""
+        return len(self._registry)
+    
+    def search_models(self, query: str) -> List[ModelConfig]:
+        """Search models by name, description, or tasks"""
+        query_lower = query.lower()
+        results = []
+        
+        for config in self._registry.values():
+            if (query_lower in config.name.lower() or 
+                query_lower in config.description.lower() or
+                any(query_lower in task.lower() for task in config.supported_tasks)):
+                results.append(config)
+        
+        return results
 
-# Global model registry instance
+# Global registry instance
 model_registry = ModelRegistry()

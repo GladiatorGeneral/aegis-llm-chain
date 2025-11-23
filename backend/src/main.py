@@ -56,6 +56,41 @@ app.include_router(cognitive.router, prefix="/api/v1/cognitive", tags=["cognitiv
 app.include_router(models.router, prefix="/api/v1/models", tags=["models"])
 app.include_router(workflows.router, prefix="/api/v1/workflows", tags=["workflows"])
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    logger.info("🚀 AGI Platform Starting Up...")
+    
+    try:
+        # Initialize model registry and inference client
+        from models.registry import model_registry
+        from models.inference_client import inference_client
+        
+        logger.info(f"✅ Model Registry Initialized ({model_registry.get_model_count()} models)")
+        logger.info("✅ Inference Client Ready")
+        
+        # Display available models
+        available_models = inference_client.get_available_models()
+        logger.info(f"📊 Available Models: {len(available_models)}")
+        
+        # Group by type
+        chat_models = [m for m in available_models if m['type'] == 'chat']
+        embedding_models = [m for m in available_models if m['type'] == 'embedding']
+        
+        logger.info(f"   💬 Chat Models: {len(chat_models)}")
+        for model in chat_models[:5]:  # Show first 5
+            logger.info(f"      - {model['key']}: {model['name']}")
+        
+        logger.info(f"   🔍 Embedding Models: {len(embedding_models)}")
+        for model in embedding_models:
+            logger.info(f"      - {model['key']}: {model['name']}")
+        
+        logger.info("🎯 AGI Platform Ready for Inference!")
+        
+    except Exception as e:
+        logger.error(f"❌ Startup initialization failed: {str(e)}")
+        raise
+
 # Generation API Models
 class GenerationAPIRequest(BaseModel):
     task: GenerationTask

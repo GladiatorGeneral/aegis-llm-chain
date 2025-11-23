@@ -6,36 +6,83 @@ api:
   port: 8000
   debug: false
   reload: false
+  workers: 4
 
 database:
   url: ${DATABASE_URL}
   pool_size: 20
   max_overflow: 40
+  pool_recycle: 3600
+  pool_pre_ping: true
 
 redis:
   url: ${REDIS_URL}
   max_connections: 50
+  socket_timeout: 5
+  socket_connect_timeout: 5
 
 security:
   secret_key: ${SECRET_KEY}
   algorithm: HS256
   access_token_expire_minutes: 30
+  refresh_token_expire_days: 30
   max_prompt_length: 10000
+  rate_limit_per_minute: 100
+
+# HuggingFace Model Configuration
+huggingface:
+  token: ${HF_TOKEN}
+  inference_endpoint: https://api-inference.huggingface.co/models
+  default_chat_model: Qwen/Qwen2.5-Coder-32B-Instruct
+  default_embedding_model: BAAI/bge-large-en-v1.5
+  timeout: 30
+  max_retries: 3
+  cache_enabled: true
 
 models:
+  # Available models (13 pre-configured)
+  chat_models:
+    - cogito-671b
+    - llama2-70b
+    - llama3-8b
+    - mistral-7b
+    - mixtral-8x7b
+    - phi-3-mini
+    - phi-3-medium
+    - codellama-34b
+    - zephyr-7b-local
+    - mistral-7b-local
+  embedding_models:
+    - bge-large
+    - gte-large
+    - e5-large
   cache_dir: /app/model_cache
-  default_model: llama-2-7b
-  hf_token: ${HF_TOKEN}
+  use_api_inference: true  # Use HF API, not local
 
 logging:
   level: INFO
+  format: json
   file: /var/log/agi-platform/app.log
+  max_file_size: 100MB
+  backup_count: 10
 
 cors:
   allowed_origins:
     - https://agi-platform.com
     - https://www.agi-platform.com
+    - ${FRONTEND_URL}
+  allow_credentials: true
+  allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  allow_headers: ["*"]
 
 monitoring:
   sentry_dsn: ${SENTRY_DSN}
   prometheus_enabled: true
+  prometheus_port: 9090
+  health_check_interval: 30
+
+performance:
+  request_timeout: 60
+  max_concurrent_requests: 100
+  enable_caching: true
+  cache_ttl: 3600

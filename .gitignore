@@ -51,6 +51,11 @@ Thumbs.db
 .env.test.local
 .env.production.local
 
+# Sensitive Scripts (contain tokens)
+launch-server.ps1
+set-token-and-test.ps1
+*-token*.ps1
+
 # Logs
 logs/
 *.log

@@ -10,14 +10,23 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/agi_platform
       - REDIS_URL=redis://redis:6379/0
-      - ENVIRONMENT=development
+      - ENVIRONMENT=production
+      - HF_TOKEN=${HF_TOKEN}
+      - LOG_LEVEL=info
     depends_on:
-      - db
-      - redis
-    volumes:
-      - ../../backend/src:/app
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
     networks:
       - agi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   frontend:
     build:
@@ -27,8 +36,11 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NODE_ENV=production
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - agi-network
 
@@ -44,6 +56,12 @@ services:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - agi-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -53,6 +71,12 @@ services:
       - redis-data:/data
     networks:
       - agi-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   pgadmin:
     image: dpage/pgadmin4:latest
