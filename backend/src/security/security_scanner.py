@@ -409,7 +409,20 @@ class SecurityScanner:
         if "severity" in vulnerability:
             for sev in vulnerability["severity"]:
                 if sev.get("type") == "CVSS_V3":
-                    cvss_score = float(sev.get("score", 0))
+                    score_value = sev.get("score", 0)
+                    # Handle both numeric scores and CVSS vector strings
+                    try:
+                        if isinstance(score_value, (int, float)):
+                            cvss_score = float(score_value)
+                        elif isinstance(score_value, str):
+                            # If it's a CVSS vector string, skip it
+                            if score_value.startswith("CVSS:"):
+                                continue
+                            # Try to parse as float
+                            cvss_score = float(score_value)
+                    except (ValueError, TypeError):
+                        logger.debug(f"Could not parse CVSS score: {score_value}")
+                        continue
                     break
         
         if cvss_score >= 9.0:

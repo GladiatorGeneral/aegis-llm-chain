@@ -5,7 +5,7 @@ pydantic==2.5.0
 pydantic-settings==2.1.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.17  # Security fix: 0.0.6 has vulnerabilities
+python-multipart>=0.0.17  # Security fix: 0.0.6 has vulnerabilities
 
 # Database
 sqlalchemy==2.0.23
@@ -22,7 +22,7 @@ sentence-transformers==2.2.2
 huggingface-hub==0.19.4
 accelerate==0.24.1
 sentencepiece==0.1.99
-protobuf==3.20.3
+protobuf>=4.25.8  # Security fix: vulnerabilities in <4.25.8
 
 # Vector Database
 chromadb==0.4.18
