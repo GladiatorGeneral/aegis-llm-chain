@@ -56,6 +56,14 @@ app.include_router(cognitive.router, prefix="/api/v1/cognitive", tags=["cognitiv
 app.include_router(models.router, prefix="/api/v1/models", tags=["models"])
 app.include_router(workflows.router, prefix="/api/v1/workflows", tags=["workflows"])
 
+# Import and include converter router
+try:
+    from api.v1.converter import router as converter_router
+    app.include_router(converter_router, tags=["converter"])
+    logger.info("🔀 Converter Engine API routes loaded")
+except ImportError as e:
+    logger.warning(f"⚠️  Converter routes not available: {str(e)}")
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""

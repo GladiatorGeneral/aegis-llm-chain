@@ -2,7 +2,7 @@
 Model Registry & Configuration System
 Organizes models by type, capability, and optimization level
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from enum import Enum
 import os
@@ -23,6 +23,16 @@ class ModelProvider(Enum):
     ANTHROPIC = "anthropic"
     CUSTOM = "custom"
 
+class MultimodalCapability(Enum):
+    """Multimodal capabilities"""
+    IMAGE_TO_TEXT = "image_to_text"
+    TEXT_TO_IMAGE = "text_to_image"
+    AUDIO_TO_TEXT = "audio_to_text"
+    TEXT_TO_AUDIO = "text_to_audio"
+    VIDEO_UNDERSTANDING = "video_understanding"
+    CHART_ANALYSIS = "chart_analysis"
+    DOCUMENT_UNDERSTANDING = "document_understanding"
+
 @dataclass
 class ModelConfig:
     """Configuration for each model"""
@@ -41,6 +51,15 @@ class ModelConfig:
     is_local: bool = False
     local_path: Optional[str] = None
     quantization: Optional[str] = None  # "4bit", "8bit", "16bit"
+    
+    # Converter engine capabilities
+    uses_converter_engine: bool = False
+    converter_type: str = "linear_projection"  # "cross_attention", "q_former", "linear"
+    supported_cross_modal_tasks: List[str] = field(default_factory=list)
+    alignment_strategy: str = "clip_style"  # "clip_style", "contrastive", "cross_attention"
+    multimodal_capabilities: List[MultimodalCapability] = field(default_factory=list)
+    supported_media_types: List[str] = field(default_factory=list)
+    max_image_size: Optional[int] = None
     
     def __post_init__(self):
         if self.api_key_env and self.requires_auth:
@@ -236,6 +255,115 @@ class ModelRegistry:
             quantization="4bit",
             api_key_env="HF_TOKEN"
         )
+        
+        # ==================== CONVERTER-ENABLED MULTIMODAL MODELS ====================
+        
+        # LLaVA-style models (Linear Projection Converter)
+        self._registry["llava-13b-converter"] = ModelConfig(
+            model_id="llava-hf/llava-1.5-13b-hf",
+            model_type=ModelType.MULTIMODAL,
+            provider=ModelProvider.HUGGINGFACE,
+            name="LLaVA 13B with Converter Engine",
+            description="Vision-language model with linear projection converter",
+            context_length=4096,
+            max_tokens=512,
+            supported_tasks=["visual_qa", "image_captioning", "cross_modal_reasoning"],
+            multimodal_capabilities=[
+                MultimodalCapability.IMAGE_TO_TEXT,
+                MultimodalCapability.CHART_ANALYSIS,
+                MultimodalCapability.DOCUMENT_UNDERSTANDING
+            ],
+            supported_media_types=["image/jpeg", "image/png", "image/webp"],
+            max_image_size=1024,
+            uses_converter_engine=True,
+            converter_type="linear_projection",
+            supported_cross_modal_tasks=[
+                "visual_question_answering",
+                "image_description", 
+                "chart_data_extraction",
+                "document_qa"
+            ],
+            alignment_strategy="clip_style",
+            is_local=True,
+            local_path="./models/llava-1.5-13b-hf",
+            api_key_env="HF_TOKEN"
+        )
+        
+        # BLIP-2 style models (Q-Former Converter)
+        self._registry["blip2-converter"] = ModelConfig(
+            model_id="Salesforce/blip2-opt-2.7b",
+            model_type=ModelType.MULTIMODAL,
+            provider=ModelProvider.HUGGINGFACE,
+            name="BLIP-2 with Q-Former Converter",
+            description="Vision-language model with querying transformer converter",
+            context_length=512,
+            max_tokens=256,
+            supported_tasks=["visual_qa", "image_captioning", "cross_modal_retrieval"],
+            multimodal_capabilities=[MultimodalCapability.IMAGE_TO_TEXT],
+            supported_media_types=["image/jpeg", "image/png"],
+            max_image_size=384,
+            uses_converter_engine=True,
+            converter_type="q_former",
+            supported_cross_modal_tasks=[
+                "visual_question_answering",
+                "image_text_matching",
+                "cross_modal_retrieval"
+            ],
+            alignment_strategy="contrastive",
+            api_key_env="HF_TOKEN"
+        )
+        
+        # Cross-Attention models (ViLBERT/LXMERT style)
+        self._registry["vilbert-style-converter"] = ModelConfig(
+            model_id="custom/vilbert-style",
+            model_type=ModelType.MULTIMODAL,
+            provider=ModelProvider.CUSTOM,
+            name="ViLBERT-style Cross-Attention Converter",
+            description="Custom model with cross-attention fusion layers",
+            context_length=1024,
+            max_tokens=512,
+            supported_tasks=["visual_qa", "referential_expression", "cross_modal_reasoning"],
+            multimodal_capabilities=[
+                MultimodalCapability.IMAGE_TO_TEXT,
+                MultimodalCapability.TEXT_TO_IMAGE
+            ],
+            supported_media_types=["image/jpeg", "image/png"],
+            uses_converter_engine=True,
+            converter_type="cross_attention",
+            supported_cross_modal_tasks=[
+                "fine-grained_visual_qa",
+                "referential_expression_grounding",
+                "complex_cross_modal_reasoning"
+            ],
+            alignment_strategy="cross_attention",
+            requires_auth=False
+        )
+        
+        # CLIP-style alignment models
+        self._registry["clip-alignment-engine"] = ModelConfig(
+            model_id="openai/clip-vit-large-patch14",
+            model_type=ModelType.MULTIMODAL,
+            provider=ModelProvider.HUGGINGFACE,
+            name="CLIP Alignment Engine",
+            description="Contrastive learning-based modality alignment",
+            context_length=77,
+            max_tokens=77,
+            supported_tasks=["cross_modal_retrieval", "zero_shot_classification"],
+            multimodal_capabilities=[
+                MultimodalCapability.IMAGE_TO_TEXT,
+                MultimodalCapability.TEXT_TO_IMAGE
+            ],
+            supported_media_types=["image/jpeg", "image/png"],
+            uses_converter_engine=True,
+            converter_type="contrastive",
+            supported_cross_modal_tasks=[
+                "image_text_retrieval",
+                "zero_shot_image_classification",
+                "cross_modal_similarity"
+            ],
+            alignment_strategy="contrastive",
+            api_key_env="HF_TOKEN"
+        )
     
     def get_model(self, model_key: str) -> Optional[ModelConfig]:
         """Get model configuration by key"""
@@ -275,6 +403,24 @@ class ModelRegistry:
                 results.append(config)
         
         return results
+    
+    def get_converter_enabled_models(self) -> List[ModelConfig]:
+        """Get all models that use the converter engine"""
+        return [config for config in self._registry.values() if config.uses_converter_engine]
+    
+    def get_models_by_converter_type(self, converter_type: str) -> List[ModelConfig]:
+        """Get models using a specific converter type"""
+        return [
+            config for config in self._registry.values() 
+            if config.uses_converter_engine and config.converter_type == converter_type
+        ]
+    
+    def get_models_by_multimodal_capability(self, capability: MultimodalCapability) -> List[ModelConfig]:
+        """Get models with specific multimodal capability"""
+        return [
+            config for config in self._registry.values()
+            if capability in config.multimodal_capabilities
+        ]
 
 # Global registry instance
 model_registry = ModelRegistry()
