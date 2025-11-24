@@ -56,6 +56,14 @@ app.include_router(cognitive.router, prefix="/api/v1/cognitive", tags=["cognitiv
 app.include_router(models.router, prefix="/api/v1/models", tags=["models"])
 app.include_router(workflows.router, prefix="/api/v1/workflows", tags=["workflows"])
 
+# Import and include security router
+try:
+    from api.security import security_router
+    app.include_router(security_router, prefix="/api/v1")
+    logger.info("🛡️ Security Scanner API routes loaded")
+except ImportError as e:
+    logger.warning(f"⚠️  Security routes not available: {str(e)}")
+
 # Import and include converter router
 try:
     from api.v1.converter import router as converter_router
@@ -92,6 +100,13 @@ async def startup_event():
         logger.info(f"   🔍 Embedding Models: {len(embedding_models)}")
         for model in embedding_models:
             logger.info(f"      - {model['key']}: {model['name']}")
+        
+        # Initialize security scanner
+        try:
+            from security.security_scanner import security_scanner
+            logger.info("🛡️ Security Scanner Initialized")
+        except ImportError:
+            logger.warning("⚠️  Security scanner not available")
         
         logger.info("🎯 AGI Platform Ready for Inference!")
         
