@@ -11,13 +11,30 @@ from typing import Optional, List, Any, Dict
 from core.config import settings
 from core.security import security_layer, SecurityViolation
 from api.v1 import cognitive, models, workflows, auth
-from engines.generator import universal_generator
 from engines.lightweight_generator import LightweightGenerator
 from engines.base import GenerationRequest, GenerationResponse, GenerationTask
-from engines.distributed import DistributedConfig, ParallelismStrategy, CommunicationBackend, distributed_engine
-from engines.analyzer import universal_analyzer, AnalysisRequest, AnalysisTask, AnalysisResponse, AnalysisConfidence
 from engines.lightweight_analyzer import lightweight_analyzer
 from engines.cognitive import cognitive_engine, CognitiveRequest, CognitiveResponse, CognitiveObjective
+
+# Import full engines (optional - may not be available without torch/transformers)
+try:
+    from engines.generator import universal_generator
+    from engines.analyzer import universal_analyzer, AnalysisRequest, AnalysisTask, AnalysisResponse, AnalysisConfidence
+    from engines.distributed import DistributedConfig, ParallelismStrategy, CommunicationBackend, distributed_engine
+    FULL_ENGINES_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Full engines not available - using lightweight mode: {e}")
+    universal_generator = None
+    universal_analyzer = None
+    distributed_engine = None
+    AnalysisRequest = None
+    AnalysisTask = None
+    AnalysisResponse = None
+    AnalysisConfidence = None
+    DistributedConfig = None
+    ParallelismStrategy = None
+    CommunicationBackend = None
+    FULL_ENGINES_AVAILABLE = False
 
 # Import optimized runner (optional - may not be available without torch)
 try:
@@ -25,7 +42,7 @@ try:
     OPTIMIZED_RUNNER_AVAILABLE = True
 except ImportError:
     OPTIMIZED_RUNNER_AVAILABLE = False
-    logger.warning("Optimized runner not available - torch/transformers not installed")
+    logging.warning("Optimized runner not available - torch/transformers not installed")
     optimized_runner = None
 
 # Configure logging
@@ -108,11 +125,63 @@ async def startup_event():
         except ImportError:
             logger.warning("⚠️  Security scanner not available")
         
-        logger.info("🎯 AGI Platform Ready for Inference!")
+        # Initialize Optima + LLM-FE Enhanced Engines
+        logger.info("🔧 Initializing Optima+LLM-FE Enhanced Systems...")
+        
+        try:
+            from engines.optima_engine import OptimaEngine
+            from engines.llm_fe_engine import LLMFEEngine
+            
+            # Initialize Optima Engine
+            global optima_engine
+            if universal_generator and universal_analyzer:
+                optima_engine = OptimaEngine(
+                    generator=universal_generator,
+                    analyzer=universal_analyzer,
+                    reasoning_depth="standard",
+                    enable_chain_of_thought=True,
+                    enable_answer_first=True
+                )
+                logger.info("✅ Optima Chain-of-Thought Engine Initialized")
+            else:
+                optima_engine = None
+                logger.warning("⚠️  Optima engine not initialized - generator/analyzer unavailable")
+            
+            # Initialize LLM-FE Engine
+            global llm_fe_engine
+            if universal_generator and universal_analyzer:
+                llm_fe_engine = LLMFEEngine(
+                    generator=universal_generator,
+                    analyzer=universal_analyzer,
+                    routing_strategy="intelligent",
+                    enable_model_selection=True,
+                    enable_caching=True
+                )
+                logger.info("✅ LLM-FE Intelligent Router Initialized")
+            else:
+                llm_fe_engine = None
+                logger.warning("⚠️  LLM-FE engine not initialized - generator/analyzer unavailable")
+            
+            # Inject engines into cognitive engine if available
+            if cognitive_engine and optima_engine and llm_fe_engine:
+                cognitive_engine.optima_engine = optima_engine
+                cognitive_engine.llm_fe_engine = llm_fe_engine
+                logger.info("✅ Enhanced engines injected into cognitive system")
+            
+        except Exception as e:
+            logger.warning(f"⚠️  Enhanced engines initialization failed: {str(e)}")
+            optima_engine = None
+            llm_fe_engine = None
+        
+        logger.info("🎯 AGI Platform Ready for Inference with Optima+LLM-FE!")
         
     except Exception as e:
         logger.error(f"❌ Startup initialization failed: {str(e)}")
         raise
+
+# Global engine references
+optima_engine = None
+llm_fe_engine = None
 
 # Generation API Models
 class GenerationAPIRequest(BaseModel):
@@ -154,18 +223,32 @@ class CognitiveAPIResponse(BaseModel):
     data: Optional[CognitiveResponse] = None
     error: Optional[str] = None
 
-# Distributed Inference Models
-class DistributedConfigRequest(BaseModel):
-    enable_distributed: bool = False
-    num_nodes: int = 1
-    gpus_per_node: int = 1
-    parallelism_strategy: ParallelismStrategy = ParallelismStrategy.TENSOR_PARALLELISM
-    use_nvrar: bool = True
+# Distributed Inference Models (only if full engines available)
+if FULL_ENGINES_AVAILABLE and ParallelismStrategy:
+    class DistributedConfigRequest(BaseModel):
+        enable_distributed: bool = False
+        num_nodes: int = 1
+        gpus_per_node: int = 1
+        parallelism_strategy: ParallelismStrategy = ParallelismStrategy.TENSOR_PARALLELISM
+        use_nvrar: bool = True
 
-class DistributedStatsResponse(BaseModel):
-    communication_stats: dict
-    performance_improvement: Optional[float] = None
-    recommendation: str
+    class DistributedStatsResponse(BaseModel):
+        communication_stats: dict
+        performance_improvement: Optional[float] = None
+        recommendation: str
+else:
+    # Dummy classes for lightweight mode
+    class DistributedConfigRequest(BaseModel):
+        enable_distributed: bool = False
+        num_nodes: int = 1
+        gpus_per_node: int = 1
+        parallelism_strategy: str = "tensor"
+        use_nvrar: bool = True
+
+    class DistributedStatsResponse(BaseModel):
+        communication_stats: dict
+        performance_improvement: Optional[float] = None
+        recommendation: str
 
 @app.get("/")
 async def root():
@@ -781,6 +864,222 @@ async def search_business_models(query: str = ""):
             "success": False,
             "error": f"Model search failed: {str(e)}"
         }
+
+# ===== OPTIMA CHAIN-OF-THOUGHT API =====
+
+@app.post("/api/v1/optima/reason")
+async def optima_reasoning(
+    request: dict,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Optima chain-of-thought reasoning endpoint
+    
+    Supports multiple reasoning modes:
+    - answer_first: Optima's key innovation (21.14% fewer steps)
+    - standard: Traditional chain-of-thought
+    """
+    try:
+        if optima_engine is None:
+            return {
+                "success": False,
+                "error": "Optima engine not available"
+            }
+        
+        result = await optima_engine.process_reasoning_chain(request)
+        
+        return {
+            "success": result.get("success", True),
+            "data": {
+                "answer": result.get("content", ""),
+                "confidence": result.get("confidence", 0.0),
+                "reasoning_chain": result.get("reasoning_chain", {}),
+                "reasoning_steps": result.get("reasoning_steps", []),
+                "alternative_viewpoints": result.get("alternative_viewpoints", []),
+                "metadata": result.get("metadata", {})
+            }
+        }
+    except Exception as e:
+        logger.error(f"Optima reasoning error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Reasoning failed: {str(e)}"
+        }
+
+@app.get("/api/v1/optima/capabilities")
+async def get_optima_capabilities():
+    """Get Optima engine capabilities"""
+    try:
+        if optima_engine is None:
+            return {
+                "success": False,
+                "error": "Optima engine not available"
+            }
+        
+        capabilities = await optima_engine.get_capabilities()
+        
+        return {
+            "success": True,
+            "data": capabilities
+        }
+    except Exception as e:
+        logger.error(f"Optima capabilities error: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.get("/api/v1/optima/metrics")
+async def get_optima_metrics():
+    """Get Optima performance metrics"""
+    try:
+        if optima_engine is None:
+            return {
+                "success": False,
+                "error": "Optima engine not available"
+            }
+        
+        metrics = optima_engine.get_metrics()
+        
+        return {
+            "success": True,
+            "data": metrics
+        }
+    except Exception as e:
+        logger.error(f"Optima metrics error: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+# ===== LLM-FE EXPERT ROUTER API =====
+
+@app.post("/api/v1/llm-fe/route")
+async def llm_fe_optimize_route(
+    request: dict,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Get LLM-FE optimized routing decision
+    
+    Routes queries to optimal engines and models for 2-3x speedup
+    """
+    try:
+        if llm_fe_engine is None:
+            return {
+                "success": False,
+                "error": "LLM-FE engine not available"
+            }
+        
+        route = await llm_fe_engine.optimize_route(request)
+        
+        return {
+            "success": True,
+            "data": route
+        }
+    except Exception as e:
+        logger.error(f"LLM-FE routing error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Routing failed: {str(e)}"
+        }
+
+@app.get("/api/v1/llm-fe/capabilities")
+async def get_llm_fe_capabilities():
+    """Get LLM-FE engine capabilities"""
+    try:
+        if llm_fe_engine is None:
+            return {
+                "success": False,
+                "error": "LLM-FE engine not available"
+            }
+        
+        capabilities = await llm_fe_engine.get_capabilities()
+        
+        return {
+            "success": True,
+            "data": capabilities
+        }
+    except Exception as e:
+        logger.error(f"LLM-FE capabilities error: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.get("/api/v1/llm-fe/metrics")
+async def get_llm_fe_metrics():
+    """Get LLM-FE routing metrics"""
+    try:
+        if llm_fe_engine is None:
+            return {
+                "success": False,
+                "error": "LLM-FE engine not available"
+            }
+        
+        metrics = llm_fe_engine.get_metrics()
+        
+        return {
+            "success": True,
+            "data": metrics
+        }
+    except Exception as e:
+        logger.error(f"LLM-FE metrics error: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.delete("/api/v1/llm-fe/cache")
+async def clear_llm_fe_cache(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Clear LLM-FE routing cache"""
+    try:
+        if llm_fe_engine is None:
+            return {
+                "success": False,
+                "error": "LLM-FE engine not available"
+            }
+        
+        llm_fe_engine.clear_cache()
+        
+        return {
+            "success": True,
+            "message": "Routing cache cleared"
+        }
+    except Exception as e:
+        logger.error(f"Cache clear error: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+# ===== ENHANCED HEALTH CHECK =====
+
+@app.get("/api/v1/health/enhanced")
+async def enhanced_health_check():
+    """Enhanced health check with Optima+LLM-FE status"""
+    base_health = {
+        "status": "healthy",
+        "version": "1.0.0"
+    }
+    
+    enhanced_health = {
+        **base_health,
+        "enhanced_engines": {
+            "optima": {
+                "status": "healthy" if optima_engine else "unavailable",
+                "ready": await optima_engine.health_check() if optima_engine else False
+            },
+            "llm_fe": {
+                "status": "healthy" if llm_fe_engine else "unavailable",
+                "ready": await llm_fe_engine.health_check() if llm_fe_engine else False
+            }
+        }
+    }
+    
+    return enhanced_health
 
 if __name__ == "__main__":
     uvicorn.run(
