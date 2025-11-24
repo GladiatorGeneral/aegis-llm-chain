@@ -6,10 +6,15 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from typing import Dict, List, Any, Optional
 import logging
 import json
+import sys
+from pathlib import Path
 
-from ..models.multimodal_engine import multimodal_engine
-from ..models.registry import model_registry
-from ..models.converter_engine import FusionConfig
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from models.multimodal_engine import multimodal_engine
+from models.registry import model_registry
+from models.converter_engine import FusionConfig
 
 logger = logging.getLogger(__name__)
 

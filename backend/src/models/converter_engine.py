@@ -113,9 +113,14 @@ class MultiModalConverterEngine:
     Implements multiple fusion strategies from research literature
     """
     
-    def __init__(self, config: FusionConfig = None):
+    def __init__(self, config: Optional[FusionConfig] = None):
         self.config = config or FusionConfig()
         self.fusion_modules = {}
+        
+        # Initialize projection layers for visual and audio modalities
+        self.visual_projection = nn.Linear(self.config.hidden_size, self.config.hidden_size)
+        self.audio_projection = nn.Linear(self.config.hidden_size, self.config.hidden_size)
+        
         self._initialize_fusion_components()
         
         logger.info("🚀 Multi-Modal Converter Engine Initialized")
@@ -197,7 +202,10 @@ class MultiModalConverterEngine:
                 
                 return final_representation
             else:
-                return text_features  # Fallback to text only
+                # Fallback to text only
+                if text_features is None:
+                    raise ValueError("At least one modality must provide features")
+                return text_features
                 
         except Exception as e:
             logger.error(f"❌ Modality alignment failed: {str(e)}")
