@@ -26,21 +26,34 @@ class User(BaseModel):
 
 @router.post("/token", response_model=Token)
 async def login(username: str = Form(...), password: str = Form(...)):
-    """Login endpoint to get access token."""
-    # TODO: Implement actual user authentication
-    # This is a placeholder implementation
-    if username != "demo" or password != "demo":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    """Login endpoint to get access token.
     
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": username}, expires_delta=access_token_expires
+    SECURITY WARNING: This is a development-only placeholder!
+    
+    Production deployment MUST implement:
+    1. Database-backed user authentication
+    2. Password hashing with bcrypt/argon2
+    3. Rate limiting to prevent brute force attacks
+    4. Account lockout after failed attempts
+    5. Multi-factor authentication (MFA)
+    6. Audit logging for authentication attempts
+    7. Secure session management
+    
+    DO NOT use hardcoded credentials in production!
+    """
+    # DEVELOPMENT ONLY: Remove this placeholder before production deployment
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Authentication not configured. Please implement proper user authentication before deploying.",
+        headers={"WWW-Authenticate": "Bearer"},
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    
+    # TODO: Replace with proper authentication:
+    # 1. Query user from database
+    # 2. Verify hashed password
+    # 3. Check account status (active/disabled)
+    # 4. Log authentication attempt
+    # 5. Create and return secure JWT token
 
 @router.get("/me", response_model=User)
 async def read_users_me(token: str = Depends(oauth2_scheme)):

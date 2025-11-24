@@ -290,10 +290,11 @@ class SecurityScanner:
         
         try:
             secret_patterns = {
-                "api_key": r'[aA][pP][iI][_-]?[kK][eE][yY].*?[\'\"]([a-zA-Z0-9_-]{20,})[\'\"]',
-                "password": r'[pP][aA][sS][sS][wW][oO][rR][dD].*?=.*?[\'\"]([^\'\"]{8,})[\'\"]',
-                "secret": r'[sS][eE][cC][rR][eE][tT].*?=.*?[\'\"]([^\'\"]{20,})[\'\"]',
-                "token": r'[tT][oO][kK][eE][nN].*?=.*?[\'\"]([a-zA-Z0-9_-]{20,})[\'\"]',
+                # Exclude os.getenv(), ${VAR}, and environment variable references
+                "api_key": r'(?<!getenv\()[aA][pP][iI][_-]?[kK][eE][yY].*?=.*?[\'\"](?!\$\{)(?!HF_TOKEN)([a-zA-Z0-9_-]{20,})[\'\"]',
+                "password": r'(?<!getenv\()[pP][aA][sS][sS][wW][oO][rR][dD].*?=.*?[\'\"](?!\$\{)(?!CHANGE)([^\'\"]{8,})[\'\"]',
+                "secret": r'(?<!getenv\()[sS][eE][cC][rR][eE][tT].*?=.*?[\'\"](?!\$\{)(?!CHANGE)([^\'\"]{20,})[\'\"]',
+                "token": r'(?<!getenv\()[tT][oO][kK][eE][nN].*?=.*?[\'\"](?!\$\{)(?!your_|CHANGE)([a-zA-Z0-9_-]{20,})[\'\"]',
                 "private_key": r'-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----'
             }
             
@@ -323,17 +324,31 @@ class SecurityScanner:
                                 for match in matches:
                                     if isinstance(match, tuple):
                                         match = match[0]
-                                    if len(match) > 10 and not any(fp in match.lower() for fp in ['example', 'test', 'demo', 'placeholder']):
-                                        vulnerabilities.append(Vulnerability(
-                                            id=f"exposed-secret-{secret_type}",
-                                            severity="critical",
-                                            package="secrets",
-                                            version="*",
-                                            fixed_version="",
-                                            description=f"Potential {secret_type} exposed in {file_path}",
-                                            affected_components=[f"file:{file_path}"]
-                                        ))
-                                        break  # Only report once per file
+                                    
+                                    # Skip if match is empty, too short, or contains template placeholders
+                                    if not match or len(match) < 10:
+                                        continue
+                                    
+                                    # Enhanced false positive filtering
+                                    false_positives = [
+                                        'example', 'test', 'demo', 'placeholder', 'change_me', 
+                                        'your_', 'insert_', 'xxx', 'sample', 'template',
+                                        'token_here', 'hf_token', 'api_key_env', 'tokenurl'
+                                    ]
+                                    
+                                    if any(fp in match.lower() for fp in false_positives):
+                                        continue
+                                    
+                                    vulnerabilities.append(Vulnerability(
+                                        id=f"exposed-secret-{secret_type}",
+                                        severity="critical",
+                                        package="secrets",
+                                        version="*",
+                                        fixed_version="",
+                                        description=f"Potential {secret_type} exposed in {file_path}",
+                                        affected_components=[f"file:{file_path}"]
+                                    ))
+                                    break  # Only report once per file
                 except:
                     continue
                     
