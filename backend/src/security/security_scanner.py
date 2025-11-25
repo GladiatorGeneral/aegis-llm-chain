@@ -1,3 +1,38 @@
+import logging
+from typing import Dict
+
+
+logger = logging.getLogger(__name__)
+
+
+class MockScanResult:
+    def __init__(self, scan_id: str = "mock-scan") -> None:
+        self.scan_id = scan_id
+        self.timestamp = "1970-01-01T00:00:00Z"
+        self.summary = "Mock security scan. No real analysis performed."
+        self.vulnerabilities = []
+        self.recommendations = []
+        self.scan_duration = 0.0
+
+
+class SecurityScanner:
+    """Lightweight mock security scanner used in development.
+
+    The real implementation should be provided in production
+    environments. This mock only tracks in-memory scan results.
+    """
+
+    def __init__(self) -> None:
+        self.scan_results: Dict[str, MockScanResult] = {}
+
+    async def perform_comprehensive_scan(self, scan_type: str = "standard") -> MockScanResult:
+        logger.info("Running mock security scan (type=%s)", scan_type)
+        result = MockScanResult()
+        self.scan_results[result.scan_id] = result
+        return result
+
+
+security_scanner = SecurityScanner()
 """
 Comprehensive Security Scanner Module
 Real-time vulnerability monitoring and security assessment

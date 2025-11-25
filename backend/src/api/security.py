@@ -7,10 +7,10 @@ from typing import Optional, List
 from pydantic import BaseModel
 import logging
 
-from backend.src.security.security_scanner import security_scanner
-from backend.src.security.monitoring_service import security_monitor
-
 logger = logging.getLogger(__name__)
+
+from security.security_scanner import security_scanner
+from security.monitoring_service import security_monitor
 
 security_router = APIRouter(prefix="/security", tags=["security"])
 
@@ -41,7 +41,7 @@ async def security_health():
 @security_router.post("/scan/start", response_model=ScanStatusResponse)
 async def start_security_scan(
     background_tasks: BackgroundTasks,
-    scan_type: str = Query(default="standard", regex="^(quick|standard|full)$")
+    scan_type: str = Query(default="standard", pattern="^(quick|standard|full)$")
 ):
     """
     Start a new security scan
@@ -121,7 +121,7 @@ async def get_scan_results(scan_id: str):
 
 @security_router.get("/vulnerabilities")
 async def get_vulnerabilities(
-    severity: Optional[str] = Query(None, regex="^(critical|high|medium|low)$"),
+    severity: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
     package: Optional[str] = None,
     limit: int = Query(default=100, le=1000)
 ):
@@ -266,15 +266,15 @@ async def get_security_recommendations():
 async def get_dependencies():
     """Get list of all scanned dependencies"""
     try:
-        if not security_monitor.last_scan_result:
+        if not security_monitor or not security_monitor.last_scan_result:
             return {
                 "status": "no_data",
                 "dependencies": []
             }
-        
+
         # Extract unique packages
         packages = {}
-        for vuln in security_monitor.last_scan_result.vulnerabilities:
+        for vuln in security_monitor.last_scan_result.vulnerabilities:  
             if vuln.package not in packages:
                 packages[vuln.package] = {
                     "name": vuln.package,
@@ -282,7 +282,7 @@ async def get_dependencies():
                     "vulnerability_count": 0,
                     "highest_severity": "low"
                 }
-            
+
             packages[vuln.package]["vulnerability_count"] += 1
             
             # Update highest severity
@@ -290,7 +290,7 @@ async def get_dependencies():
             current_severity = packages[vuln.package]["highest_severity"]
             if severity_order.index(vuln.severity) > severity_order.index(current_severity):
                 packages[vuln.package]["highest_severity"] = vuln.severity
-        
+
         return {
             "status": "success",
             "dependencies": list(packages.values()),

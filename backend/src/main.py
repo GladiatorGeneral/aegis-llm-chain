@@ -1,16 +1,33 @@
 """FastAPI application entry point for AGI Platform."""
 
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 import logging
 from typing import Optional, List, Any, Dict
 
 from core.config import settings
 from core.security import security_layer, SecurityViolation
-from api.v1 import cognitive, models, workflows, auth
+from core.deps import get_current_user
+
+# Initialize security scheme
+security = HTTPBearer()
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        return response
+
+from api.v1 import models, workflows, auth, blockchain, cognitive_routes, multimodal
 from engines.lightweight_generator import LightweightGenerator
 from engines.base import GenerationRequest, GenerationResponse, GenerationTask
 from engines.lightweight_analyzer import lightweight_analyzer
@@ -49,48 +66,12 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Security
-security = HTTPBearer()
+# Global engine references
+optima_engine = None
+llm_fe_engine = None
 
-app = FastAPI(
-    title="AGI Platform API",
-    description="Universal AI platform with security-first architecture",
-    version="1.0.0"
-)
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include routers
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
-app.include_router(cognitive.router, prefix="/api/v1/cognitive", tags=["cognitive"])
-app.include_router(models.router, prefix="/api/v1/models", tags=["models"])
-app.include_router(workflows.router, prefix="/api/v1/workflows", tags=["workflows"])
-
-# Import and include security router
-try:
-    from api.security import security_router
-    app.include_router(security_router, prefix="/api/v1")
-    logger.info("🛡️ Security Scanner API routes loaded")
-except ImportError as e:
-    logger.warning(f"⚠️  Security routes not available: {str(e)}")
-
-# Import and include converter router
-try:
-    from api.v1.converter import router as converter_router
-    app.include_router(converter_router, tags=["converter"])
-    logger.info("🔀 Converter Engine API routes loaded")
-except ImportError as e:
-    logger.warning(f"⚠️  Converter routes not available: {str(e)}")
-
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     """Initialize services on startup"""
     logger.info("🚀 AGI Platform Starting Up...")
     
@@ -178,10 +159,54 @@ async def startup_event():
     except Exception as e:
         logger.error(f"❌ Startup initialization failed: {str(e)}")
         raise
+    
+    yield
+    logger.info("👋 AGI Platform Shutting Down...")
 
-# Global engine references
-optima_engine = None
-llm_fe_engine = None
+app = FastAPI(
+    title="AGI Platform API",
+    description="Universal AI platform with security-first architecture",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Security Headers Middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Include routers
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
+app.include_router(cognitive_routes.router, prefix="/api/v1/cognitive", tags=["cognitive"])
+app.include_router(models.router, prefix="/api/v1/models", tags=["models"])
+app.include_router(workflows.router, prefix="/api/v1/workflows", tags=["workflows"])
+app.include_router(multimodal.router, prefix="/api/v1/multimodal", tags=["multimodal"])
+
+app.include_router(blockchain.router, prefix="/api/v1", tags=["blockchain"])
+# Import and include security router
+try:
+    from api.security import security_router
+    app.include_router(security_router, prefix="/api/v1")
+    logger.info("🛡️ Security Scanner API routes loaded")
+except ImportError as e:
+    logger.warning(f"⚠️  Security routes not available: {str(e)}")
+
+# Import and include converter router
+try:
+    from api.v1.converter import router as converter_router
+    app.include_router(converter_router, tags=["converter"])
+    logger.info("🔀 Converter Engine API routes loaded")
+except ImportError as e:
+    logger.warning(f"⚠️  Converter routes not available: {str(e)}")
+
+
 
 # Generation API Models
 class GenerationAPIRequest(BaseModel):
@@ -210,18 +235,7 @@ class AnalysisAPIResponse(BaseModel):
     data: Optional[AnalysisResponse] = None
     error: Optional[str] = None
 
-# Cognitive API Models
-class CognitiveAPIRequest(BaseModel):
-    input: Any
-    objectives: List[CognitiveObjective]
-    context: Optional[Dict[str, Any]] = None
-    parameters: Optional[Dict[str, Any]] = None
-    use_lightweight: bool = False
 
-class CognitiveAPIResponse(BaseModel):
-    success: bool
-    data: Optional[CognitiveResponse] = None
-    error: Optional[str] = None
 
 # Distributed Inference Models (only if full engines available)
 if FULL_ENGINES_AVAILABLE and ParallelismStrategy:
@@ -362,7 +376,7 @@ async def get_supported_tasks():
 @app.post("/api/v1/analyze", response_model=AnalysisAPIResponse)
 async def analyze_content(
     request: AnalysisAPIRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: dict = Depends(get_current_user)
 ):
     """Universal analysis endpoint"""
     try:
@@ -451,59 +465,13 @@ async def get_analysis_models():
             detail="Failed to retrieve analysis model information"
         )
 
-# Cognitive Endpoints
-@app.post("/api/v1/cognitive/process", response_model=CognitiveAPIResponse)
-async def process_cognitive_request(
-    request: CognitiveAPIRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-):
-    """Unified cognitive processing endpoint"""
-    try:
-        cognitive_request = CognitiveRequest(
-            input=request.input,
-            objectives=request.objectives,
-            context=request.context,
-            parameters=request.parameters or {},
-            use_lightweight=request.use_lightweight
-        )
-        
-        result = await cognitive_engine.process(cognitive_request)
-        
-        return CognitiveAPIResponse(
-            success=True,
-            data=result
-        )
-        
-    except Exception as e:
-        logger.error(f"Cognitive processing error: {str(e)}")
-        return CognitiveAPIResponse(
-            success=False,
-            error=f"Cognitive processing failed: {str(e)}"
-        )
-
-@app.get("/api/v1/cognitive/objectives")
-async def get_cognitive_objectives():
-    """Get list of supported cognitive objectives"""
-    objectives_info = [
-        {
-            "id": objective.value,
-            "name": objective.name,
-            "description": f"Perform {objective.value} operations",
-            "capabilities": ["analysis", "generation"]  # Which engines it uses
-        }
-        for objective in CognitiveObjective
-    ]
-    
-    return {
-        "success": True,
-        "data": objectives_info
-    }
+# Cognitive Endpoints - Moved to api/v1/cognitive_routes.py
 
 # Distributed Inference Endpoints
 @app.post("/api/v1/distributed/enable")
 async def enable_distributed_inference(
     config: DistributedConfigRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: dict = Depends(get_current_user)
 ):
     """Enable distributed inference with NVRAR optimization"""
     try:
@@ -542,7 +510,7 @@ async def enable_distributed_inference(
 
 @app.get("/api/v1/distributed/stats", response_model=DistributedStatsResponse)
 async def get_distributed_stats(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: dict = Depends(get_current_user)
 ):
     """Get distributed inference performance statistics"""
     try:
@@ -729,7 +697,7 @@ async def get_domain_models(domain: str):
 @app.post("/api/v1/business/generate")
 async def business_generation(
     request: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: dict = Depends(get_current_user)
 ):
     """Business-focused content generation"""
     try:
@@ -784,7 +752,7 @@ Task: {prompt}
 @app.post("/api/v1/business/analyze")
 async def business_analysis(
     request: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: dict = Depends(get_current_user)
 ):
     """Business-focused content analysis"""
     try:
@@ -870,7 +838,7 @@ async def search_business_models(query: str = ""):
 @app.post("/api/v1/optima/reason")
 async def optima_reasoning(
     request: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Optima chain-of-thought reasoning endpoint
@@ -957,7 +925,7 @@ async def get_optima_metrics():
 @app.post("/api/v1/llm-fe/route")
 async def llm_fe_optimize_route(
     request: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Get LLM-FE optimized routing decision
@@ -1032,7 +1000,7 @@ async def get_llm_fe_metrics():
 
 @app.delete("/api/v1/llm-fe/cache")
 async def clear_llm_fe_cache(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: dict = Depends(get_current_user)
 ):
     """Clear LLM-FE routing cache"""
     try:

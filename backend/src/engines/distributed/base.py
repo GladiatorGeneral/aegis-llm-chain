@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Dict, List, Optional, Any
 from enum import Enum
 import logging
@@ -20,19 +20,18 @@ class CommunicationBackend(str, Enum):
 
 class DistributedConfig(BaseModel):
     """Configuration for distributed inference"""
+    model_config = ConfigDict(use_enum_values=True, extra="forbid", protected_namespaces=())
+    
     parallelism_strategy: ParallelismStrategy = ParallelismStrategy.TENSOR_PARALLELISM
     communication_backend: CommunicationBackend = CommunicationBackend.NCCL
     num_nodes: int = 1
     gpus_per_node: int = 8
     model_sharding: Dict[str, Any] = {}
-    all_reduce_algorithm: str = "auto"  # "nccl", "nvrar", "ring"
+    all_reduce_algorithm: str = "auto"  # "nccl", "nvrar", "ring"       
     hierarchical_all_reduce: bool = True
     intra_node_backend: CommunicationBackend = CommunicationBackend.NCCL
     inter_node_backend: CommunicationBackend = CommunicationBackend.NVSHMEM
     
-    class Config:
-        use_enum_values = True
-
 class DistributedInferenceEngine(ABC):
     """Abstract base for distributed inference engines"""
     

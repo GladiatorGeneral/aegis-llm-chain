@@ -1,0 +1,23 @@
+# Core Web Framework
+fastapi==0.122.0
+uvicorn[standard]==0.38.0
+pydantic==2.12.4
+pydantic-settings==2.12.0
+python-multipart==0.0.20
+aiofiles==25.1.0
+python-dotenv==1.2.1
+
+# Security & Auth
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+bcrypt==5.0.0
+cryptography==46.0.3
+
+# HTTP & Async
+requests==2.32.5
+httpx==0.28.1
+aiohttp==3.13.2
+
+# Utilities
+jinja2==3.1.6
+packaging==25.0

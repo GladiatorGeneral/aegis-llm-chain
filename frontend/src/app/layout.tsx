@@ -44,6 +44,9 @@ export default function RootLayout({
                   <Link href="/generation" className="text-gray-300 hover:text-white transition-colors">
                     Generation
                   </Link>
+                  <Link href="/chains" className="text-gray-300 hover:text-white transition-colors">
+                    Chains
+                  </Link>
                 </div>
               </div>
             </div>
@@ -65,3 +68,4 @@ export default function RootLayout({
     </html>
   )
 }
+

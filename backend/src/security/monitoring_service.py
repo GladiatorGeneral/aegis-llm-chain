@@ -1,3 +1,80 @@
+import logging
+from typing import Any, Dict, List, Optional
+
+
+logger = logging.getLogger(__name__)
+
+
+class MockVulnerability:
+    def __init__(self, vulnerability_id: str = "mock-vuln") -> None:
+        self.id = vulnerability_id
+        self.package = "mock-package"
+        self.version = "0.0.0"
+        self.severity = "low"
+        self.description = "Mock vulnerability. No real risk."
+
+
+class MockScanResult:
+    def __init__(self) -> None:
+        self.scan_id = "mock-scan"
+        self.timestamp = "1970-01-01T00:00:00Z"
+        self.summary = "No real scan performed."
+        self.vulnerabilities: List[MockVulnerability] = []
+        self.recommendations: List[str] = []
+        self.scan_duration = 0.0
+
+
+class SecurityMonitor:
+    """Lightweight mock security monitoring service for development.
+
+    Provides the attributes and methods expected by the API layer
+    without performing any real security monitoring.
+    """
+
+    def __init__(self) -> None:
+        self.is_monitoring: bool = False
+        self.last_scan_result: Optional[MockScanResult] = None
+        self.alert_history: List[Dict[str, Any]] = []
+
+    def _serialize_vulnerability(self, v: MockVulnerability) -> Dict[str, Any]:
+        return {
+            "id": v.id,
+            "package": v.package,
+            "version": v.version,
+            "severity": v.severity,
+            "description": v.description,
+        }
+
+    async def get_vulnerability_details(self, vulnerability_id: str) -> Optional[Dict[str, Any]]:
+        if not self.last_scan_result:
+            return None
+        for v in self.last_scan_result.vulnerabilities:
+            if v.id == vulnerability_id:
+                return self._serialize_vulnerability(v)
+        return None
+
+    def get_monitoring_status(self) -> Dict[str, Any]:
+        return {"is_monitoring": self.is_monitoring}
+
+    async def start_continuous_monitoring(self, scan_type: str = "standard") -> None:
+        logger.info("Starting mock continuous security monitoring (type=%s)", scan_type)
+        self.is_monitoring = True
+        if self.last_scan_result is None:
+            self.last_scan_result = MockScanResult()
+
+    async def stop_monitoring(self) -> None:
+        logger.info("Stopping mock continuous security monitoring")
+        self.is_monitoring = False
+
+    def get_security_dashboard(self) -> Dict[str, Any]:
+        return {
+            "summary": "Mock security dashboard. No real data.",
+            "is_monitoring": self.is_monitoring,
+            "last_scan_timestamp": getattr(self.last_scan_result, "timestamp", None),
+        }
+
+
+security_monitor = SecurityMonitor()
 """
 Security Monitoring Service
 Continuous vulnerability monitoring with alerting

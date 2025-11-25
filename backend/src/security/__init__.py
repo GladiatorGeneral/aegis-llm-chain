@@ -14,3 +14,8 @@ __all__ = [
     'security_config',
     'SecurityConfig'
 ]
+"""Security subsystem package.
+
+This provides lightweight mock implementations for development when
+full security scanner/monitoring services are not available.
+"""

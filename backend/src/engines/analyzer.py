@@ -1,7 +1,7 @@
 """Universal Analysis Engine with multi-task capabilities."""
 
 from abc import ABC, abstractmethod
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Dict, List, Optional, Union
 from enum import Enum
 import logging
@@ -33,15 +33,13 @@ class AnalysisConfidence(str, Enum):
 
 class AnalysisRequest(BaseModel):
     """Universal analysis request"""
+    model_config = ConfigDict(use_enum_values=True)
     task: AnalysisTask
     input_data: Any
     context: Optional[Dict[str, Any]] = None
     parameters: Dict[str, Any] = Field(default_factory=dict)
     require_reasoning_chain: bool = False
     safety_checks: bool = True
-    
-    class Config:
-        use_enum_values = True
 
 class AnalysisResponse(BaseModel):
     """Universal analysis response"""

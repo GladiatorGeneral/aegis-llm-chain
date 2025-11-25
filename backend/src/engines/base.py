@@ -1,7 +1,7 @@
 """Base abstract classes for universal engines."""
 
 from abc import ABC, abstractmethod
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Dict, List, Optional, Union
 from enum import Enum
 import logging
@@ -26,6 +26,7 @@ class ModelProvider(str, Enum):
 
 class GenerationRequest(BaseModel):
     """Universal generation request"""
+    model_config = ConfigDict(protected_namespaces=(), use_enum_values=True)
     task: GenerationTask
     prompt: str
     parameters: Dict[str, Any] = Field(default_factory=dict)
@@ -34,12 +35,10 @@ class GenerationRequest(BaseModel):
     provider: ModelProvider = ModelProvider.HUGGINGFACE
     model_id: Optional[str] = None  # Specific model to use
     safety_checks: bool = True
-    
-    class Config:
-        use_enum_values = True
 
 class GenerationResponse(BaseModel):
     """Universal generation response"""
+    model_config = ConfigDict(protected_namespaces=())
     content: Any
     model_used: str
     provider: str
@@ -73,6 +72,7 @@ class BaseGenerator(ABC):
 # Legacy compatibility classes
 class EngineConfig(BaseModel):
     """Base engine configuration."""
+    model_config = ConfigDict(protected_namespaces=())
     model_id: str
     max_tokens: int = 2048
     temperature: float = 0.7
@@ -86,6 +86,7 @@ class EngineRequest(BaseModel):
 
 class EngineResponse(BaseModel):
     """Base engine response."""
+    model_config = ConfigDict(protected_namespaces=())
     output: str
     model_used: str
     tokens_used: int

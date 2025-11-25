@@ -45,15 +45,16 @@ class UnifiedInferenceClient:
         # Initialize Hugging Face Inference Client
         if HF_HUB_AVAILABLE:
             hf_token = os.getenv("HF_TOKEN")
-            if hf_token:
+            # Debug print
+            if not hf_token:
+                logger.warning("❌ HF_TOKEN not found - Hugging Face API disabled")
+            else:
                 try:
                     self.hf_client = InferenceClient(token=hf_token)
                     self.async_hf_client = AsyncInferenceClient(token=hf_token)
                     logger.info("✅ Hugging Face Inference Client initialized")
                 except Exception as e:
                     logger.error(f"❌ Failed to initialize HF client: {str(e)}")
-            else:
-                logger.warning("❌ HF_TOKEN not found - Hugging Face API disabled")
         
         # Check for local inference capabilities
         if TRANSFORMERS_AVAILABLE and torch.cuda.is_available():
@@ -382,6 +383,35 @@ class UnifiedInferenceClient:
             logger.error(f"❌ Embedding error for {model_config.model_id}: {str(e)}")
             raise RuntimeError(f"Embedding generation failed: {str(e)}")
     
+    async def multimodal_completion(
+        self,
+        model_key: str,
+        prompt: str,
+        file_context: Dict[str, Any],
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate completion with file context
+        """
+        # Construct a prompt that includes file information
+        context_str = f"""
+Context from uploaded file ({file_context['filename']}):
+Type: {file_context['content_type']}
+Summary: {file_context.get('summary', 'N/A')}
+
+Extracted Content:
+{file_context.get('content', '')[:2000]}  # Truncate if too long
+"""
+        
+        full_prompt = f"{context_str}\n\nUser Query: {prompt}"
+        
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant analyzing an uploaded file. Use the provided file context to answer the user's question."},
+            {"role": "user", "content": full_prompt}
+        ]
+        
+        return await self.chat_completion(model_key, messages, **kwargs)
+
     def get_available_models(self) -> List[Dict[str, Any]]:
         """Get list of available models with their capabilities"""
         models = []

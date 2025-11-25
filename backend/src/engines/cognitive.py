@@ -3,7 +3,7 @@ Unified Cognitive Engine - Orchestrates between Generation and Analysis
 The brain of our AGI platform that intelligently routes between capabilities
 """
 from typing import Dict, List, Any, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 import logging
 import asyncio
@@ -42,6 +42,7 @@ class CognitiveObjective(str, Enum):
 
 class CognitiveRequest(BaseModel):
     """Unified cognitive request"""
+    model_config = ConfigDict(use_enum_values=True)
     input: Any
     objectives: List[CognitiveObjective]
     context: Optional[Dict[str, Any]] = None
@@ -50,9 +51,6 @@ class CognitiveRequest(BaseModel):
     use_lightweight: bool = False
     use_optima: bool = False  # Enable Optima chain-of-thought
     use_llm_fe: bool = False  # Enable LLM-FE intelligent routing
-    
-    class Config:
-        use_enum_values = True
 
 class CognitiveResponse(BaseModel):
     """Unified cognitive response"""
